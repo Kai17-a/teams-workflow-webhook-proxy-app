@@ -2,17 +2,23 @@ import os
 import json
 import requests
 import base64
+from enum import Enum
 
 
-TARGET_EVENT: list[str] = ["issues", "issue_comment"]
+class Event(Enum):
+    PULL_REQUEST = "pull_request"
+    ISSUES = "issues"
+    ISSUE_COMMENT = "issue_comment"
+
+
 WEBHOOK_URL: str = os.getenv("WEBHOOK_URL")
 
 
 def lambda_handler(event, context):
-    header: dict = event.get("headers", {})
+    header_event: dict = event.get("headers", {}).get("X-GitHub-Event", "")
 
-    if not header.get("X-GitHub-Event", "") in TARGET_EVENT:
-        return {"statusCode": 400, "body": "Illegal event"}
+    if not header_event in (event.value for event in Event):
+        return {"statusCode": 200, "body": f"Unexcepted event: {header_event}"}
 
     event_body: str = event.get("body", {})
 
@@ -20,27 +26,55 @@ def lambda_handler(event, context):
         if event.get("isBase64Encoded", False):
             event_body = base64.b64decode(event_body).decode("utf-8")
         body = json.loads(event_body)
+
+        if not body:
+            return {"statusCode": 400, "body": "Empty body"}
     except Exception as e:
         print("Failed to parse JSON:", e)
         return {"statusCode": 400, "body": "Invalid JSON"}
 
-    if not body:
-        return {"statusCode": 400, "body": "Empty body"}
+    if header_event == Event.PULL_REQUEST.value:
+        action = body.get("action", "")
+        if action != "opened":
+            return {
+                "statusCode": 200,
+                "body": f"Unexcepted event: {header_event}: {action}",
+            }
 
-    repository_name = body.get("repository", {}).get("full_name")
-    url = body.get("comment", {}).get("html_url")
-    comment = body.get("comment", {}).get("body")
-    title = body.get("issue", {}).get("title")
-
-    try:
-        assert (
-            repository_name != None
-            and repository_name != None
-            and comment != None
-            and url != None
+        title = body.get("pull_request", {}).get("title")
+        url = body.get("pull_request", {}).get("html_url")
+        repository_name = (
+            body.get("pull_request", {}).get("base", {}).get("repo", {}).get("name")
         )
-    except AssertionError as e:
-        return {"statusCode": 400, "body": f"invalid body: {e}"}
+
+        try:
+            assert title and url and repository_name
+        except AssertionError as e:
+            return {"statusCode": 400, "body": f"invalid body: {e}"}
+
+        message = f"[[{repository_name}] New Pull Request: {title}]({url})"
+    elif header_event in [Event.ISSUES.value, Event.ISSUE_COMMENT.value]:
+        # repository_owner = body.get("repository", {}).get("owner", {}).get("login", "")
+        # comment_user = body.get("issue", {}).get("user", {}).get("login", "")
+
+        # if repository_owner == comment_user:
+        #     return {"statusCode": 200, "body": f"The commenter is owner."}
+
+        title = body.get("issue", {}).get("title")
+        url = body.get("issue", {}).get("html_url")
+        repository_name = body.get("repository", {}).get("name")
+        comment = body.get("comment", {}).get("body")
+
+        try:
+            assert title and url and repository_name and comment
+        except AssertionError as e:
+            return {"statusCode": 400, "body": f"invalid body: {e}"}
+
+        message = (
+            f"[[{repository_name}] New Pull Request: {title}]({url})<br />{comment}",
+        )
+    else:
+        return {"statusCode": 200, "body": f"Unexcepted event: {header_event}"}
 
     try:
         request_body = {
@@ -54,7 +88,7 @@ def lambda_handler(event, context):
                         "body": [
                             {
                                 "type": "TextBlock",
-                                "text": f"[[{repository_name}] New issue event: {title}]({url})<br />{comment}",
+                                "text": message,
                                 "wrap": True,
                                 "markdown": True,
                             }
@@ -64,18 +98,21 @@ def lambda_handler(event, context):
             ]
         }
 
-        res = requests.post(
-            WEBHOOK_URL, headers={"Content-Type": "application/json"}, json=request_body
-        )
-        res.raise_for_status()
+        print(request_body)
+
+        # res = requests.post(
+        #     WEBHOOK_URL, headers={"Content-Type": "application/json"}, json=request_body
+        # )
+        # res.raise_for_status()
     except Exception as e:
-        return {"statusCode": 500, "body": f"Unexcept Error"}
+        print("Unexcept Error")
+        return {"statusCode": 500, "body": "Unexcept Error"}
 
     return {
         "statusCode": 200,
         "body": json.dumps(
             {
-                "message": "OK",
+                "message": message,
             }
         ),
     }
