@@ -1,0 +1,32 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  teams-workflow-webhook-proxy-for-github-app
+
+Parameters:
+  WebhookUrl:
+    Type: String
+
+Globals:
+  Function:
+    Timeout: 3
+
+Resources:
+  TeamsWorkflowWebhookProxyForGithub:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: teams-workflow-webhook-proxy-for-github
+      CodeUri: teams_workflow_webhook_proxy_for_github/
+      Handler: app.lambda_handler
+      Runtime: python3.14
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          WEBHOOK_URL: !Ref WebhookUrl
+      Events:
+        HelloWorld:
+          Type: Api
+          Properties:
+            Path: /webhook
+            Method: post
