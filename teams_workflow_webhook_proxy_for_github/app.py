@@ -98,12 +98,10 @@ def lambda_handler(event, context):
             ]
         }
 
-        print(request_body)
-
-        # res = requests.post(
-        #     WEBHOOK_URL, headers={"Content-Type": "application/json"}, json=request_body
-        # )
-        # res.raise_for_status()
+        res = requests.post(
+            WEBHOOK_URL, headers={"Content-Type": "application/json"}, json=request_body
+        )
+        res.raise_for_status()
     except Exception as e:
         print("Unexcept Error")
         return {"statusCode": 500, "body": "Unexcept Error"}
