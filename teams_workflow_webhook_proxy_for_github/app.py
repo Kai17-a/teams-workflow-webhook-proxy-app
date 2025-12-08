@@ -71,7 +71,7 @@ def lambda_handler(event, context):
             return {"statusCode": 400, "body": f"invalid body: {e}"}
 
         message = (
-            f"[[{repository_name}] New Pull Request: {title}]({url})<br />{comment}",
+            f"[[{repository_name}] New Pull Request: {title}]({url})<br />{comment}"
         )
     else:
         return {"statusCode": 200, "body": f"Unexcepted event: {header_event}"}
