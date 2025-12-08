@@ -245,3 +245,4 @@ $RECYCLE.BIN/
 
 .venv
 .aws-sam
+samconfig.toml
