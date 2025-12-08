@@ -38,7 +38,7 @@ def lambda_handler(event, context):
         if action != "opened":
             return {
                 "statusCode": 200,
-                "body": f"Unexcepted event: {header_event}: {action}",
+                "body": f"Unexcepted event action: {header_event}: {action}",
             }
 
         title = body.get("pull_request", {}).get("title")
@@ -54,6 +54,12 @@ def lambda_handler(event, context):
 
         message = f"[[{repository_name}] New Pull Request: {title}]({url})"
     elif header_event in [Event.ISSUES.value, Event.ISSUE_COMMENT.value]:
+        action = body.get("action", "")
+        if action != "created":
+            return {
+                "statusCode": 200,
+                "body": f"Unexcepted event action: {header_event}: {action}",
+            }
         # repository_owner = body.get("repository", {}).get("owner", {}).get("login", "")
         # comment_user = body.get("issue", {}).get("user", {}).get("login", "")
 
