@@ -4,6 +4,8 @@ import requests
 import base64
 from enum import Enum
 
+import boto3
+
 
 class Event(Enum):
     PULL_REQUEST = "pull_request"
@@ -11,10 +13,33 @@ class Event(Enum):
     ISSUE_COMMENT = "issue_comment"
 
 
-WEBHOOK_URL: str = os.getenv("WEBHOOK_URL")
+# パラメータストアから webhook url を取得
+def get_webhook_url() -> str:
+    ssm_parameter_path = os.getenv("SSM_PARAMETER_PATH")
+    if not ssm_parameter_path:
+        raise RuntimeError("SSM_PARAMETER_PATH is not set")
+
+    aws_session_token = os.getenv("AWS_SESSION_TOKEN")
+
+    if not aws_session_token:
+        raise RuntimeError("AWS_SESSION_TOKEN is not set")
+
+    headers = {"X-Aws-Parameters-Secrets-Token": aws_session_token}
+    url = "http://localhost:2773/systemsmanager/parameters/get"
+    params = {
+        "name": ssm_parameter_path,
+    }
+
+    res = requests.get(url, headers=headers, params=params, timeout=3)
+    res.raise_for_status()
+
+    data = res.json()
+    return data["Parameter"]["Value"]
 
 
 def lambda_handler(event, context):
+    get_webhook_url()
+
     header_event: dict = event.get("headers", {}).get("X-GitHub-Event", "")
 
     if not header_event in (event.value for event in Event):
